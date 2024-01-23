@@ -1,22 +1,35 @@
-use proc_macro::{Ident, Span, TokenStream};
-use syn::{parse::Parse, parse_macro_input, DeriveInput, __private::quote::quote};
+#![allow(unused)]
+use proc_macro2::{Ident, TokenStream};
+use syn::{
+	Data, DeriveInput, Fields,
+	__private::{quote::quote, ToTokens},
+	spanned::Spanned
+};
 
 #[proc_macro_derive(Builder)]
-pub fn derive(input: TokenStream) -> TokenStream {
-	let input = parse_macro_input!(input as DeriveInput);
-	let name = Ident::new(&format!("{}Builder", input.ident), Span::call_site());
+pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	let input = syn::parse_macro_input!(input as DeriveInput);
 
-	let expanded = quote! {
-		pub struct #name {
-			#
-		}
-		impl #name {
-			pub fn builder() -> #name {
-				#name::new()
-			}
+	let name = input.ident.clone();
+	let builder_name = Ident::new(&(name.to_string() + "Builder"), input.span());
+
+	let convert_impl = quote!(impl #name {
+		pub fn builder() {}
+	});
+
+	let field_inits = match input.data {
+		Data::Struct(s) => s.fields.into_iter().map(|field| {
+			quote!(
+				#field: None
+			)
+		}),
+		_ => unimplemented!("Derive macro used on non-struct type!")
+	};
+	let builder_def: TokenStream = quote! {
+		pub struct #builder_name {
+			#(#field_inits),*
 		}
 	};
 
-	// unimplemented!()
-	TokenStream::new()
+	TokenStream::from_iter([convert_impl, builder_def].into_iter()).into()
 }
